@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"project/ent"
 	"project/ent/order"
+	"project/ent/brand"
 )
 
 // OrderHandler handles API requests for orders
@@ -139,7 +140,7 @@ func (h *OrderHandler) GetOrders(c *gin.Context) {
 	if brandID != "" {
 		id, err := strconv.Atoi(brandID)
 		if err == nil {
-			query = query.Where(order.BrandID(id))
+			query = query.Where(order.HasBrandWith(brand.ID(id)))
 		}
 	}
 	
