@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"context"
+	"log"
 
 	"github.com/gin-gonic/gin"
 	"project/ent"
@@ -22,109 +24,6 @@ func NewOrderHandler(client *ent.Client) *OrderHandler {
 	return &OrderHandler{
 		client: client,
 	}
-}
-
-// CreateOrder creates a new order
-func (h *OrderHandler) CreateOrder(c *gin.Context) {
-	var input struct {
-		BrandID    int       `json:"brand_id" binding:"required"`
-		RequiredBy time.Time `json:"required_by" binding:"required"`
-		Items      []struct {
-			MenuItemID int    `json:"menu_item_id" binding:"required"`
-			Quantity   int    `json:"quantity" binding:"required,min=1"`
-			Notes      string `json:"special_instructions"`
-		} `json:"items" binding:"required,dive"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Start a transaction
-	tx, err := h.client.Tx(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
-		return
-	}
-
-	// Create order
-	o, err := tx.Order.
-		Create().
-		SetBrandID(input.BrandID).
-		SetCreatedAt(time.Now()).
-		SetRequiredBy(input.RequiredBy).
-		SetStatus("pending").
-		SetTotalPrice(0).  // Will be calculated after adding items
-		Save(c.Request.Context())
-
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Add items to order
-	totalPrice := 0.0
-	for _, item := range input.Items {
-		// Get menu item to retrieve price
-		menuItem, err := tx.MenuItem.Get(c.Request.Context(), item.MenuItemID)
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Menu item not found: " + strconv.Itoa(item.MenuItemID)})
-			return
-		}
-
-		// Create order item
-		_, err = tx.OrderItem.
-			Create().
-			SetOrder(o).
-			SetMenuItemID(item.MenuItemID).
-			SetQuantity(item.Quantity).
-			SetSpecialInstructions(item.Notes).
-			Save(c.Request.Context())
-
-		if err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add order item"})
-			return
-		}
-
-		// Add to total price
-		totalPrice += menuItem.Price * float64(item.Quantity)
-	}
-
-	// Update order with calculated total price
-	_, err = tx.Order.
-		UpdateOne(o).
-		SetTotalPrice(totalPrice).
-		Save(c.Request.Context())
-
-	if err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order total"})
-		return
-	}
-
-	// Commit transaction
-	if err := tx.Commit(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
-		return
-	}
-
-	// Return created order
-	createdOrder, err := h.client.Order.
-		Query().
-		Where(order.ID(o.ID)).
-		WithItems().
-		Only(c.Request.Context())
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Order created but failed to retrieve details"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, createdOrder)
 }
 
 // GetOrders retrieves all orders with optional filters
@@ -267,4 +166,117 @@ func (h *OrderHandler) CancelOrder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Order cancelled successfully"})
+}
+
+func (h *OrderHandler) CreateOrder(c *gin.Context) {
+	var input struct {
+		BrandID    int       `json:"brand_id" binding:"required"`
+		RequiredBy time.Time `json:"required_by" binding:"required"`
+		Items      []struct {
+			MenuItemID int    `json:"menu_item_id" binding:"required"`
+			Quantity   int    `json:"quantity" binding:"required,min=1"`
+			Notes      string `json:"special_instructions"`
+		} `json:"items" binding:"required,dive"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Start a transaction
+	tx, err := h.client.Tx(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start transaction"})
+		return
+	}
+
+	// Create order
+	o, err := tx.Order.
+		Create().
+		SetBrandID(input.BrandID).
+		SetCreatedAt(time.Now()).
+		SetRequiredBy(input.RequiredBy).
+		SetStatus("pending").
+		SetTotalPrice(0).  // Will be calculated after adding items
+		Save(c.Request.Context())
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Add items to order
+	totalPrice := 0.0
+	for _, item := range input.Items {
+		// Get menu item to retrieve price
+		menuItem, err := tx.MenuItem.Get(c.Request.Context(), item.MenuItemID)
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Menu item not found: " + strconv.Itoa(item.MenuItemID)})
+			return
+		}
+
+		// Create order item
+		_, err = tx.OrderItem.
+			Create().
+			SetOrder(o).
+			SetMenuItemID(item.MenuItemID).
+			SetQuantity(item.Quantity).
+			SetSpecialInstructions(item.Notes).
+			Save(c.Request.Context())
+
+		if err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add order item"})
+			return
+		}
+
+		// Add to total price
+		totalPrice += menuItem.Price * float64(item.Quantity)
+	}
+
+	// Update order with calculated total price
+	_, err = tx.Order.
+		UpdateOne(o).
+		SetTotalPrice(totalPrice).
+		Save(c.Request.Context())
+
+	if err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update order total"})
+		return
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to commit transaction"})
+		return
+	}
+
+	// Return created order
+	createdOrder, err := h.client.Order.
+		Query().
+		Where(order.ID(o.ID)).
+		WithItems().
+		Only(c.Request.Context())
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Order created but failed to retrieve details"})
+		return
+	}
+
+	// Schedule resource allocation in background (added this part)
+	if resourceManager, exists := c.Get("resourceManager"); exists {
+		rm := resourceManager.(*ResourceManager)
+		go func() {
+			err := rm.AllocateResourcesForOrder(context.Background(), o.ID)
+			if err != nil {
+				log.Printf("Error scheduling resource allocation: %v", err)
+			}
+		}()
+	}
+
+	c.JSON(http.StatusCreated, createdOrder)
 }
