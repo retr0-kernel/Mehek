@@ -18,6 +18,7 @@ import (
 	"project/ent/resourceallocation"
 	"project/ent/shift"
 	"project/ent/staff"
+	"project/ent/user"
 	"reflect"
 	"sync"
 
@@ -96,6 +97,7 @@ func checkColumn(table, column string) error {
 			resourceallocation.Table: resourceallocation.ValidColumn,
 			shift.Table:              shift.ValidColumn,
 			staff.Table:              staff.ValidColumn,
+			user.Table:               user.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

@@ -41,3 +41,6 @@ type Shift func(*sql.Selector)
 
 // Staff is the predicate function for staff builders.
 type Staff func(*sql.Selector)
+
+// User is the predicate function for user builders.
+type User func(*sql.Selector)

@@ -61,15 +61,3 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-
-func setupRoutes(r *gin.Engine, client *ent.Client) {
-	// API v1 group
-	v1 := r.Group("/api/v1")
-	
-	// Setup routes for each domain
-	// TODO: Implement these route handlers
-	v1.GET("/kitchens", func(c *gin.Context) {
-		// Placeholder for kitchen list endpoint
-		c.JSON(http.StatusOK, gin.H{"message": "Kitchen list endpoint"})
-	})
-}
