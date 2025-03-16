@@ -16,8 +16,7 @@ Mehek is a full-stack application that helps multiple food delivery brands share
     
     5. Performance analytics and kitchen utilization metrics
 
-![Flow](/images/Mehek.png)
-
+![Flow](/backend/Images/Mehek.png)
 
 ## Tech Stack
 
@@ -53,7 +52,7 @@ Mehek is a full-stack application that helps multiple food delivery brands share
 
 ## Data Model
 
-![Data Models](/images/DataModels.png)
+![Data Models](/backend/Images/DataModels.png)
 
 ### Kitchen Management
 
@@ -88,9 +87,6 @@ Mehek is a full-stack application that helps multiple food delivery brands share
 ### Resource Allocation
 
 - **ResourceAllocation:** Assignments of kitchen resources to specific orders
-
-
-
 
 ## Core Features
 
